@@ -22,14 +22,13 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 router.route("/").post(upload.single("file"), async function (req, res) {
-  const { name } = req.body;
-  const file = req.file;
+  const { file, fileName } = req;
   if (file) {
     //s3에 업로드
     console.log("File received: ", file);
     const uploadParams = {
       Bucket: BUCKET_NAME,
-      Key: `pdfs/${name}/${name}.pdf`,
+      Key: `pdfs/${fileName}/${fileName}.pdf`,
       Body: fs.createReadStream(file.path),
     };
     console.log("uploadParams:", uploadParams);
@@ -42,22 +41,22 @@ router.route("/").post(upload.single("file"), async function (req, res) {
     res.status(400).send("No file received");
   }
 
-  const uploadingPdfPath = path.join(__dirname, DEST, `${name}.pdf`);
+  const uploadingPdfPath = path.join(__dirname, DEST, `${fileName}.pdf`);
   const data = await fs.promises.readFile(uploadingPdfPath);
   const readPdf = await PDFDocument.load(data);
   const { pageLength } = readPdf.getPages();
 
-  const pdfOutputPath = path.join(__dirname, DEST, "pdf", name);
-  const htmlOutputPath = path.join(__dirname, DEST, "html", name);
+  const pdfOutputPath = path.join(__dirname, DEST, "pdf", fileName);
+  const htmlOutputPath = path.join(__dirname, DEST, "html", fileName);
 
   await convert(pdfOutputPath, htmlOutputPath);
 
   try {
     for (let pageNum = 0, n = pageLength; pageNum < n; pageNum += 1) {
-      const htmlFileName = `${name}_${pageNum}.page`;
+      const htmlFileName = `${fileName}_${pageNum}.page`;
       const uploadParams = {
         Bucket: BUCKET_NAME,
-        Key: `pdfs/${name}/${htmlFileName}`,
+        Key: `pdfs/${fileName}/${htmlFileName}`,
         Body: fs.createReadStream(htmlFileName),
       };
       s3Upload(uploadParams)
