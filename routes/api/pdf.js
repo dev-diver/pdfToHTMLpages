@@ -108,3 +108,5 @@ const removeFile = async (fileDirectory) => {
       : console.log(`${fileDirectory} 를 정상적으로 삭제했습니다`)
   );
 };
+
+module.exports = router;
