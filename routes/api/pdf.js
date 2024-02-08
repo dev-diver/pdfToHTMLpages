@@ -11,11 +11,11 @@ require("dotenv").config();
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const uploadPath = path.join(__dirname, DEST); // 'name'을 경로에 포함
+    const uploadPath = path.join(__dirname, DEST, "pdf", req.fileName);
     cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
-    cb(null, req.name);
+    cb(null, req.fileName);
   },
 });
 
@@ -41,15 +41,16 @@ router.route("/").post(upload.single("file"), async function (req, res) {
     res.status(400).send("No file received");
   }
 
-  const uploadingPdfPath = path.join(__dirname, DEST, `${fileName}.pdf`);
+  const uploadingPdfPath = path.join(__dirname, DEST, "pdf", `${fileName}.pdf`);
+
   const data = await fs.promises.readFile(uploadingPdfPath);
   const readPdf = await PDFDocument.load(data);
   const { pageLength } = readPdf.getPages();
 
-  const pdfOutputPath = path.join(__dirname, DEST, "pdf", fileName);
   const htmlOutputPath = path.join(__dirname, DEST, "html", fileName);
 
-  await convert(pdfOutputPath, htmlOutputPath);
+  await convert(uploadingPdfPath, htmlOutputPath);
+  console.log("convert completed");
 
   try {
     for (let pageNum = 0, n = pageLength; pageNum < n; pageNum += 1) {
@@ -59,11 +60,11 @@ router.route("/").post(upload.single("file"), async function (req, res) {
         Key: `pdfs/${fileName}/${htmlFileName}`,
         Body: fs.createReadStream(htmlFileName),
       };
-      s3Upload(uploadParams)
-        .promise()
-        .catch((err) => {
-          console.error(err);
-        });
+      try {
+        await s3Upload(uploadParams).promise();
+      } catch (err) {
+        console.error(err);
+      }
       await removeFile(path.join(htmlOutputPath, htmlFileName));
     }
     await removeFile(uploadingPdfPath);
