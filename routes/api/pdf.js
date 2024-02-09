@@ -1,7 +1,7 @@
 var express = require("express");
 var router = express.Router();
 const multer = require("multer");
-const DEST = "uploads/";
+const DEST = "uploads";
 const fs = require("fs");
 const path = require("path");
 const { PDFDocument } = require("pdf-lib");
@@ -20,7 +20,7 @@ require("dotenv").config();
 //   },
 // });
 
-const upload = multer({ dest: DEST });
+const upload = multer({ dest: path.join(DEST, "pdf") });
 
 router.route("/").post(upload.single("file"), async function (req, res) {
   const file = req.file;
@@ -47,7 +47,7 @@ router.route("/").post(upload.single("file"), async function (req, res) {
   const { length } = readPdf.getPages();
   const pageLength = length;
 
-  const htmlOutputDirPath = path.join(__dirname, DEST, "html", fileName);
+  const htmlOutputDirPath = path.join(DEST, "html", fileName);
   console.log("uploadingPdfPath:", uploadingPdfFilePath);
   console.log("htmlOutputPath:", htmlOutputDirPath);
   try {
@@ -105,6 +105,7 @@ const convert = async (file, outputPath, fileName) => {
       `--page-filename ${fileName}_%d.page`,
     ]);
     await converter.convert();
+    console.error(`변환 성공`);
     return true;
   } catch (err) {
     console.error(`변경 중에 오류가 있었습니다.: ${err}`);
