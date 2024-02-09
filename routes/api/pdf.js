@@ -4,6 +4,8 @@ const multer = require("multer");
 const DEST = "uploads";
 const fs = require("fs");
 const path = require("path");
+const util = require("util");
+
 const { PDFDocument } = require("pdf-lib");
 const pdftohtml = require("pdftohtmljs");
 const { s3, s3Upload, BUCKET_NAME } = require("../../config/aws");
@@ -21,20 +23,25 @@ require("dotenv").config();
 // });
 
 const upload = multer({ dest: path.join(DEST, "pdf") });
+const renameFile = util.promisify(fs.rename);
 
 router.route("/").post(upload.single("file"), async function (req, res) {
   const file = req.file;
   const fileName = req.body.fileName;
+  const tempPath = req.file?.path;
+  const newExtension = path.extname(req.file?.originalname);
+  const newPath = path.join("uploads/pdf", `${fileName}${newExtension}`);
+  await renameFile(tempPath, newPath);
   if (file) {
     //s3에 업로드
     console.log("File received: ", file.path);
+
     const uploadParams = {
       Bucket: BUCKET_NAME,
       Key: `pdfs/${fileName}/${fileName}.pdf`,
-      Body: fs.createReadStream(file.path),
+      Body: fs.createReadStream(newPath),
     };
     await s3Upload(uploadParams)
-      .promise()
       .then((data) => {
         console.log(data);
         console.log(data.Location);
@@ -46,7 +53,7 @@ router.route("/").post(upload.single("file"), async function (req, res) {
     res.status(400).send("No file received");
   }
 
-  const uploadingPdfFilePath = file.path;
+  const uploadingPdfFilePath = newPath;
 
   const data = await fs.promises.readFile(uploadingPdfFilePath);
   const readPdf = await PDFDocument.load(data);
@@ -68,35 +75,32 @@ router.route("/").post(upload.single("file"), async function (req, res) {
     }
     console.log("convert completed");
     console.log("pageLength:", pageLength);
-    for (let pageNum = 1; pageNum <= pageLength; pageNum++) {
-      const htmlFileName = `${fileName}_${pageNum}.page`;
 
-      const htmlFilePath = path.join(htmlOutputDirPath, htmlFileName);
-      console.log("htmlFilePath:", htmlFilePath);
-      const uploadParams = {
-        Bucket: BUCKET_NAME,
-        Key: `/pdfs/${fileName}/${htmlFileName}`,
-        Body: fs.createReadStream(htmlFilePath),
-      };
-      try {
-        await s3Upload(uploadParams)
-          .promise()
-          .then((data) => {
-            console.error(
-              `/pdfs/${fileName}/${htmlFileName}`,
-              "s3 업로드 성공",
-              data.Location
-            );
-          })
-          .catch((err) => {
-            console.error(err);
-          });
-      } catch (err) {
-        console.error("s3 업로드 실패", err);
-      }
-      await removeFile(htmlFilePath);
+    //html, css 업로드
+    const htmlFileName = `${fileName}.html`;
+    const cssFileName = `${fileName}.css`;
+    const S3KeyPath = path.join("pdfs", fileName);
+    uploadS3AndDelete(htmlOutputDirPath, S3KeyPath, htmlFileName);
+    uploadS3AndDelete(htmlOutputDirPath, S3KeyPath, cssFileName);
+
+    //page 업로드
+    for (let pageNum = 1; pageNum <= pageLength; pageNum++) {
+      const pageFileName = `${fileName}_${pageNum}.page`;
+      uploadS3AndDelete(htmlOutputDirPath, S3KeyPath, pageFileName);
     }
-    removeFile(file.path);
+
+    const removeList = [
+      "pdf2htmlEx.min.js",
+      "fancy.min.css",
+      "compatibility.min.js",
+      "base.min.css",
+    ];
+    removeList.forEach((file) => {
+      removeFile(path.join(htmlOutputDirPath, file));
+    });
+    removeFile(uploadingPdfFilePath);
+
+    console.log("업로드 완료");
     return res.json({
       isSuccess: true,
       message: "pdf 업로드 성공",
@@ -139,6 +143,33 @@ const removeFile = async (fileDirectory) => {
       ? console.log(err)
       : console.log(`${fileDirectory} 를 정상적으로 삭제했습니다`)
   );
+};
+
+const uploadS3AndDelete = async (
+  localDirectory,
+  KeyDirectory,
+  fileNameWithExtend
+) => {
+  const KeyFilePath = path.join(KeyDirectory, fileNameWithExtend);
+  const LocalFilePath = path.join(localDirectory, fileNameWithExtend);
+
+  const uploadParams = {
+    Bucket: BUCKET_NAME,
+    Key: KeyFilePath,
+    Body: fs.createReadStream(LocalFilePath),
+  };
+  try {
+    await s3Upload(uploadParams)
+      .then((data) => {
+        console.error("s3 업로드 성공", data.Location);
+      })
+      .catch((err) => {
+        console.error(err);
+      });
+  } catch (err) {
+    console.error("s3 업로드 실패", err);
+  }
+  await removeFile(LocalFilePath);
 };
 
 module.exports = router;
