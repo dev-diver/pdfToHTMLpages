@@ -32,6 +32,7 @@ router.route("/").post(upload.single("file"), async function (req, res) {
   const newExtension = path.extname(req.file?.originalname);
   const newPath = path.join("uploads/pdf", `${fileName}${newExtension}`);
   await renameFile(tempPath, newPath);
+  let location;
   if (file) {
     //s3에 업로드
     console.log("File received: ", file.path);
@@ -45,6 +46,7 @@ router.route("/").post(upload.single("file"), async function (req, res) {
       .then((data) => {
         console.log(data);
         console.log(data.Location);
+        location = data.Location;
       })
       .catch((err) => {
         console.error(err);
@@ -90,7 +92,7 @@ router.route("/").post(upload.single("file"), async function (req, res) {
     }
 
     const removeList = [
-      "pdf2htmlEx.min.js",
+      "pdf2htmlEX.min.js",
       "fancy.min.css",
       "compatibility.min.js",
       "base.min.css",
@@ -104,6 +106,8 @@ router.route("/").post(upload.single("file"), async function (req, res) {
     return res.json({
       isSuccess: true,
       message: "pdf 업로드 성공",
+      fileName: fileName,
+      location: location,
     });
   } catch (err) {
     console.error(err);
