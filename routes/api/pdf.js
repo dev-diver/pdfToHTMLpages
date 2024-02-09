@@ -9,39 +9,39 @@ const pdftohtml = require("pdftohtmljs");
 const { s3, s3Upload, BUCKET_NAME } = require("../../config/aws");
 require("dotenv").config();
 
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadPath = path.join(__dirname, DEST, "pdf", req.fileName);
-    cb(null, uploadPath);
-  },
-  filename: function (req, file, cb) {
-    cb(null, req.fileName);
-  },
-});
+// const storage = multer.diskStorage({
+//   destination: function (req, file, cb) {
+//     console.log(req);
+//     const uploadPath = path.join(__dirname, DEST, "pdf", req.fileName);
+//     cb(null, uploadPath);
+//   },
+//   filename: function (req, file, cb) {
+//     cb(null, req.fileName);
+//   },
+// });
 
-const upload = multer({ storage: storage });
+const upload = multer({ dest: DEST });
 
 router.route("/").post(upload.single("file"), async function (req, res) {
-  const { file, fileName } = req;
+  const file = req.file;
+  const fileName = req.body.fileName;
   if (file) {
     //s3에 업로드
-    console.log("File received: ", file);
+    console.log("File received: ");
     const uploadParams = {
       Bucket: BUCKET_NAME,
       Key: `pdfs/${fileName}/${fileName}.pdf`,
       Body: fs.createReadStream(file.path),
     };
     console.log("uploadParams:", uploadParams);
-    s3Upload(uploadParams)
-      .promise()
-      .catch((err) => {
-        console.error(err);
-      });
+    s3Upload(uploadParams).catch((err) => {
+      console.error(err);
+    });
   } else {
     res.status(400).send("No file received");
   }
 
-  const uploadingPdfPath = path.join(__dirname, DEST, "pdf", `${fileName}.pdf`);
+  const uploadingPdfPath = file.path;
 
   const data = await fs.promises.readFile(uploadingPdfPath);
   const readPdf = await PDFDocument.load(data);
@@ -51,7 +51,7 @@ router.route("/").post(upload.single("file"), async function (req, res) {
 
   await convert(uploadingPdfPath, htmlOutputPath);
   console.log("convert completed");
-
+  console.log("pageLength:", pageLength);
   try {
     for (let pageNum = 0, n = pageLength; pageNum < n; pageNum += 1) {
       const htmlFileName = `${fileName}_${pageNum}.page`;
