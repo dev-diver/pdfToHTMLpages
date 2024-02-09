@@ -33,7 +33,6 @@ router.route("/").post(upload.single("file"), async function (req, res) {
       Key: `pdfs/${fileName}/${fileName}.pdf`,
       Body: fs.createReadStream(file.path),
     };
-    console.log("uploadParams:", uploadParams);
     s3Upload(uploadParams).catch((err) => {
       console.error(err);
     });
@@ -45,14 +44,18 @@ router.route("/").post(upload.single("file"), async function (req, res) {
 
   const data = await fs.promises.readFile(uploadingPdfPath);
   const readPdf = await PDFDocument.load(data);
-  const { pageLength } = readPdf.getPages();
+  const { length } = readPdf.getPages();
+  const pageLength = length;
 
   const htmlOutputPath = path.join(__dirname, DEST, "html", fileName);
 
-  await convert(uploadingPdfPath, htmlOutputPath);
-  console.log("convert completed");
-  console.log("pageLength:", pageLength);
   try {
+    const convertSuccess = await convert(uploadingPdfPath, htmlOutputPath);
+    console.log("convert completed");
+    console.log("pageLength:", pageLength);
+    if (!convertSuccess) {
+      throw new Error("PDF 변환 실패");
+    }
     for (let pageNum = 0, n = pageLength; pageNum < n; pageNum += 1) {
       const htmlFileName = `${fileName}_${pageNum}.page`;
       const uploadParams = {
@@ -61,7 +64,7 @@ router.route("/").post(upload.single("file"), async function (req, res) {
         Body: fs.createReadStream(htmlFileName),
       };
       try {
-        await s3Upload(uploadParams).promise();
+        await s3Upload(uploadParams);
       } catch (err) {
         console.error(err);
       }
@@ -73,7 +76,6 @@ router.route("/").post(upload.single("file"), async function (req, res) {
       message: "pdf 업로드 성공",
     });
   } catch (err) {
-    console.log(`App - post pdf info Query error\n: ${err}`);
     return res.status(500).json({
       isSuccess: false,
       message: "pdf 업로드 실패",
@@ -96,8 +98,10 @@ const convert = async (file, outputPath, fileName) => {
       `--page-filename ${fileName}_%d.page`,
     ]);
     await converter.convert();
+    return true;
   } catch (err) {
-    console.error(`변경 중에 오류가 있었습니다.: ${err.msg}`);
+    console.error(`변경 중에 오류가 있었습니다.: ${err}`);
+    return false;
   }
 };
 
