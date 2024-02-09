@@ -56,11 +56,12 @@ router.route("/").post(upload.single("file"), async function (req, res) {
       htmlOutputDirPath,
       fileName
     );
-    console.log("convert completed");
-    console.log("pageLength:", pageLength);
     if (!convertSuccess) {
+      console.log("convert failed");
       throw new Error("PDF 변환 실패");
     }
+    console.log("convert completed");
+    console.log("pageLength:", pageLength);
     for (let pageNum = 0; pageNum < pageLength; pageNum++) {
       const htmlFileName = `${fileName}_${pageNum}.page`;
       console.log("htmlFilePath:", htmlFilePath);
@@ -84,6 +85,7 @@ router.route("/").post(upload.single("file"), async function (req, res) {
       message: "pdf 업로드 성공",
     });
   } catch (err) {
+    console.error(err);
     return res.status(500).json({
       isSuccess: false,
       message: "pdf 업로드 실패",
