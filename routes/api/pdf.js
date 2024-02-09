@@ -27,7 +27,7 @@ router.route("/").post(upload.single("file"), async function (req, res) {
   const fileName = req.body.fileName;
   if (file) {
     //s3에 업로드
-    console.log("File received: ");
+    console.log("File received: ", file.path);
     const uploadParams = {
       Bucket: BUCKET_NAME,
       Key: `pdfs/${fileName}/${fileName}.pdf`,
@@ -62,7 +62,7 @@ router.route("/").post(upload.single("file"), async function (req, res) {
     }
     console.log("convert completed");
     console.log("pageLength:", pageLength);
-    for (let pageNum = 0; pageNum < pageLength; pageNum++) {
+    for (let pageNum = 1; pageNum <= pageLength; pageNum++) {
       const htmlFileName = `${fileName}_${pageNum}.page`;
 
       const htmlFilePath = path.join(htmlOutputDirPath, htmlFileName);
@@ -74,6 +74,7 @@ router.route("/").post(upload.single("file"), async function (req, res) {
       };
       try {
         await s3Upload(uploadParams);
+        console.error(`/pdfs/${fileName}/${htmlFileName}`, "s3 업로드 성공");
       } catch (err) {
         console.error("s3 업로드 실패", err);
       }
