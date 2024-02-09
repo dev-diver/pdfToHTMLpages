@@ -33,11 +33,15 @@ router.route("/").post(upload.single("file"), async function (req, res) {
       Key: `pdfs/${fileName}/${fileName}.pdf`,
       Body: fs.createReadStream(file.path),
     };
-    await s3Upload(uploadParams).catch((err) => {
-      console.error(err);
-    });
-    res.send("success");
-    return;
+    await s3Upload(uploadParams)
+      .promise()
+      .then((data) => {
+        console.log(data);
+        console.log(data.Location);
+      })
+      .catch((err) => {
+        console.error(err);
+      });
   } else {
     res.status(400).send("No file received");
   }
@@ -75,14 +79,24 @@ router.route("/").post(upload.single("file"), async function (req, res) {
         Body: fs.createReadStream(htmlFilePath),
       };
       try {
-        await s3Upload(uploadParams);
-        console.error(`/pdfs/${fileName}/${htmlFileName}`, "s3 업로드 성공");
+        await s3Upload(uploadParams)
+          .promise()
+          .then((data) => {
+            console.error(
+              `/pdfs/${fileName}/${htmlFileName}`,
+              "s3 업로드 성공",
+              data.Location
+            );
+          })
+          .catch((err) => {
+            console.error(err);
+          });
       } catch (err) {
         console.error("s3 업로드 실패", err);
       }
       await removeFile(htmlFilePath);
     }
-    // await removeFile(uploadingPdfFilePath);
+    removeFile(file.path);
     return res.json({
       isSuccess: true,
       message: "pdf 업로드 성공",
