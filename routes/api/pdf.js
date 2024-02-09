@@ -64,9 +64,9 @@ router.route("/").post(upload.single("file"), async function (req, res) {
     console.log("pageLength:", pageLength);
     for (let pageNum = 0; pageNum < pageLength; pageNum++) {
       const htmlFileName = `${fileName}_${pageNum}.page`;
-      console.log("htmlFilePath:", htmlFilePath);
-      const htmlFilePath = path.join(htmlOutputDirPath, htmlFileName);
 
+      const htmlFilePath = path.join(htmlOutputDirPath, htmlFileName);
+      console.log("htmlFilePath:", htmlFilePath);
       const uploadParams = {
         Bucket: BUCKET_NAME,
         Key: `/pdfs/${fileName}/${htmlFileName}`,
