@@ -61,21 +61,22 @@ router.route("/").post(upload.single("file"), async function (req, res) {
     if (!convertSuccess) {
       throw new Error("PDF 변환 실패");
     }
-    for (let pageNum = 0, n = pageLength; pageNum < n; pageNum += 1) {
+    for (let pageNum = 0; pageNum < pageLength; pageNum++) {
       const htmlFileName = `${fileName}_${pageNum}.page`;
+      console.log("htmlFilePath:", htmlFilePath);
+      const htmlFilePath = path.join(htmlOutputDirPath, htmlFileName);
+
       const uploadParams = {
         Bucket: BUCKET_NAME,
-        Key: `pdfs/${fileName}/${htmlFileName}`,
-        Body: fs.createReadStream(htmlFileName),
+        Key: `/pdfs/${fileName}/${htmlFileName}`,
+        Body: fs.createReadStream(htmlFilePath),
       };
       try {
         await s3Upload(uploadParams);
       } catch (err) {
-        console.error(err);
+        console.error("s3 업로드 실패", err);
       }
-      const removeFilePath = path.join(htmlOutputDirPath, htmlFileName);
-      console.log("removeFilePath:", removeFilePath);
-      await removeFile(removeFilePath);
+      await removeFile(htmlFilePath);
     }
     // await removeFile(uploadingPdfFilePath);
     return res.json({
