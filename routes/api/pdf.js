@@ -40,17 +40,22 @@ router.route("/").post(upload.single("file"), async function (req, res) {
     res.status(400).send("No file received");
   }
 
-  const uploadingPdfPath = file.path;
+  const uploadingPdfFilePath = file.path;
 
-  const data = await fs.promises.readFile(uploadingPdfPath);
+  const data = await fs.promises.readFile(uploadingPdfFilePath);
   const readPdf = await PDFDocument.load(data);
   const { length } = readPdf.getPages();
   const pageLength = length;
 
-  const htmlOutputPath = path.join(__dirname, DEST, "html", fileName);
-
+  const htmlOutputDirPath = path.join(__dirname, DEST, "html", fileName);
+  console.log("uploadingPdfPath:", uploadingPdfFilePath);
+  console.log("htmlOutputPath:", htmlOutputDirPath);
   try {
-    const convertSuccess = await convert(uploadingPdfPath, htmlOutputPath);
+    const convertSuccess = await convert(
+      uploadingPdfFilePath,
+      htmlOutputDirPath,
+      fileName
+    );
     console.log("convert completed");
     console.log("pageLength:", pageLength);
     if (!convertSuccess) {
@@ -68,9 +73,11 @@ router.route("/").post(upload.single("file"), async function (req, res) {
       } catch (err) {
         console.error(err);
       }
-      await removeFile(path.join(htmlOutputPath, htmlFileName));
+      const removeFilePath = path.join(htmlOutputDirPath, htmlFileName);
+      console.log("removeFilePath:", removeFilePath);
+      await removeFile(removeFilePath);
     }
-    await removeFile(uploadingPdfPath);
+    // await removeFile(uploadingPdfFilePath);
     return res.json({
       isSuccess: true,
       message: "pdf 업로드 성공",
