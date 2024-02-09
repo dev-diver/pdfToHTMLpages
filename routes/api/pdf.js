@@ -83,6 +83,7 @@ router.route("/").post(upload.single("file"), async function (req, res) {
     const cssFileName = `${fileName}.css`;
     const S3KeyPath = path.join("pdfs", fileName);
     uploadS3AndDelete(htmlOutputDirPath, S3KeyPath, htmlFileName);
+    location = changePdfToHtml(location);
     uploadS3AndDelete(htmlOutputDirPath, S3KeyPath, cssFileName);
 
     //page 업로드
@@ -175,5 +176,12 @@ const uploadS3AndDelete = async (
   }
   await removeFile(LocalFilePath);
 };
+
+function changePdfToHtml(url) {
+  if (!url.endsWith(".pdf")) {
+    throw new Error("URL does not end with .pdf");
+  }
+  return url.substring(0, url.lastIndexOf(".pdf")) + ".html";
+}
 
 module.exports = router;
