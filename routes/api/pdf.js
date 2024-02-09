@@ -33,9 +33,11 @@ router.route("/").post(upload.single("file"), async function (req, res) {
       Key: `pdfs/${fileName}/${fileName}.pdf`,
       Body: fs.createReadStream(file.path),
     };
-    s3Upload(uploadParams).catch((err) => {
+    await s3Upload(uploadParams).catch((err) => {
       console.error(err);
     });
+    res.send("success");
+    return;
   } else {
     res.status(400).send("No file received");
   }
