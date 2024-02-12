@@ -11,22 +11,6 @@ const s3 = new AWS.S3({
   region: REGION, // 예: 'us-east-1'
 });
 
-// exports.s3 = new AWS.S3({
-//   accessKeyId: ACCESS_KEY_ID,
-//   secretAccessKey: SECRET_ACCESS_KEY_ID,
-//   region: REGION, // 예: 'us-east-1'
-// });
-
-// AWS.config.update({
-//   region: REGION,
-//   accessKeyId: ACCESS_KEY_ID,
-//   secretAccessKey: SECRET_ACCESS_KEY_ID,
-// });
-
-// exports.s3Upload = (uploadParams) => {
-//   return new AWS.S3.ManagedUpload({ params: uploadParams });
-// };
-
 exports.s3 = s3;
 
 exports.s3Upload = (uploadParams) => {

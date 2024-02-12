@@ -44,8 +44,6 @@ router.route("/").post(upload.single("file"), async function (req, res) {
     };
     await s3Upload(uploadParams)
       .then((data) => {
-        console.log(data);
-        console.log(data.Location);
         location = data.Location;
       })
       .catch((err) => {
