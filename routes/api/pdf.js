@@ -72,7 +72,7 @@ router.route("/").post(upload.single("file"), async function (req, res) {
     const coverFileName = `cover.jpg`;
     const htmlFileName = `${fileName}.html`;
     const cssFileName = `${fileName}.css`;
-    uploadS3(DEST, S3KeyPath, coverFileName, false);
+    uploadS3(path.join(DEST), S3KeyPath, coverFileName, false);
     uploadS3(htmlOutputDirPath, S3KeyPath, htmlFileName);
     uploadS3(htmlOutputDirPath, S3KeyPath, cssFileName);
 
