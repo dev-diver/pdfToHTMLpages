@@ -11,17 +11,6 @@ const pdftohtml = require("pdftohtmljs");
 const { s3, s3Upload, BUCKET_NAME } = require("../../config/aws");
 require("dotenv").config();
 
-// const storage = multer.diskStorage({
-//   destination: function (req, file, cb) {
-//     console.log(req);
-//     const uploadPath = path.join(__dirname, DEST, "pdf", req.fileName);
-//     cb(null, uploadPath);
-//   },
-//   filename: function (req, file, cb) {
-//     cb(null, req.fileName);
-//   },
-// });
-
 const upload = multer({ dest: path.join(DEST, "pdf") });
 const renameFile = util.promisify(fs.rename);
 
@@ -45,6 +34,7 @@ router.route("/").post(upload.single("file"), async function (req, res) {
     await s3Upload(uploadParams)
       .then((data) => {
         location = data.Location;
+        location = changePdfToHtml(location);
       })
       .catch((err) => {
         console.error(err);
@@ -76,18 +66,20 @@ router.route("/").post(upload.single("file"), async function (req, res) {
     console.log("convert completed");
     console.log("pageLength:", pageLength);
 
+    const S3KeyPath = path.join("pdfs", fileName);
+
     //html, css 업로드
+    const coverFileName = `cover.jpg`;
     const htmlFileName = `${fileName}.html`;
     const cssFileName = `${fileName}.css`;
-    const S3KeyPath = path.join("pdfs", fileName);
-    uploadS3AndDelete(htmlOutputDirPath, S3KeyPath, htmlFileName);
-    location = changePdfToHtml(location);
-    uploadS3AndDelete(htmlOutputDirPath, S3KeyPath, cssFileName);
+    uploadS3(htmlOutputDirPath, `pdfs/${fileName}`, coverFileName, false);
+    uploadS3(htmlOutputDirPath, S3KeyPath, htmlFileName);
+    uploadS3(htmlOutputDirPath, S3KeyPath, cssFileName);
 
     //page 업로드
     for (let pageNum = 1; pageNum <= pageLength; pageNum++) {
       const pageFileName = `${fileName}_${pageNum}.page`;
-      uploadS3AndDelete(htmlOutputDirPath, S3KeyPath, pageFileName);
+      uploadS3(htmlOutputDirPath, S3KeyPath, pageFileName);
     }
 
     const removeList = [
@@ -148,10 +140,11 @@ const removeFile = async (fileDirectory) => {
   );
 };
 
-const uploadS3AndDelete = async (
+const uploadS3 = async (
   localDirectory,
   KeyDirectory,
-  fileNameWithExtend
+  fileNameWithExtend,
+  deleteOrigin = true
 ) => {
   const KeyFilePath = path.join(KeyDirectory, fileNameWithExtend);
   const LocalFilePath = path.join(localDirectory, fileNameWithExtend);
@@ -172,7 +165,9 @@ const uploadS3AndDelete = async (
   } catch (err) {
     console.error("s3 업로드 실패", err);
   }
-  await removeFile(LocalFilePath);
+  if (deleteOrigin) {
+    await removeFile(LocalFilePath);
+  }
 };
 
 function changePdfToHtml(url) {
