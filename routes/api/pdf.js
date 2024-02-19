@@ -99,6 +99,7 @@ router.route("/").post(upload.single("file"), async function (req, res) {
       message: "pdf 업로드 성공",
       fileName: fileName,
       location: location,
+      totalPage: pageLength,
     });
   } catch (err) {
     console.error(err);
