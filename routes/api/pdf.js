@@ -23,8 +23,9 @@ router.route("/").post(
     const file = req.files["pdfFile"][0];
     const coverImage = req.files["coverImage"][0];
     const fileName = req.body.fileName;
-    const tempPath = req.file?.path;
-    const newExtension = path.extname(req.file?.originalname);
+    console.log("file", file);
+    const tempPath = file?.path;
+    const newExtension = path.extname(file?.originalname);
     const newPath = path.join("uploads/pdf", `${fileName}${newExtension}`);
     await renameFile(tempPath, newPath);
     let location;
