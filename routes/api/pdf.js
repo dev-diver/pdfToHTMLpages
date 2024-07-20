@@ -14,101 +14,127 @@ require("dotenv").config();
 const upload = multer({ dest: path.join(DEST, "pdf") });
 const renameFile = util.promisify(fs.rename);
 
-router.route("/").post(upload.single("file"), async function (req, res) {
-  const file = req.file;
-  const fileName = req.body.fileName;
-  const tempPath = req.file?.path;
-  const newExtension = path.extname(req.file?.originalname);
-  const newPath = path.join("uploads/pdf", `${fileName}${newExtension}`);
-  await renameFile(tempPath, newPath);
-  let location;
-  if (file) {
-    //s3에 업로드
-    console.log("File received: ", file.path);
+router.route("/").post(
+  upload.fields([
+    { name: "pdfFile", maxCount: 1 },
+    { name: "coverImage", maxCount: 1 },
+  ]),
+  async function (req, res) {
+    const file = req.files["pdfFile"][0];
+    const coverImage = req.files["coverImage"][0];
+    const fileName = req.body.fileName;
+    const tempPath = req.file?.path;
+    const newExtension = path.extname(req.file?.originalname);
+    const newPath = path.join("uploads/pdf", `${fileName}${newExtension}`);
+    await renameFile(tempPath, newPath);
+    let location;
+    if (file) {
+      //s3에 업로드
+      console.log("File received: ", file.path);
 
-    const uploadParams = {
-      Bucket: BUCKET_NAME,
-      Key: `pdfs/${fileName}/${fileName}.pdf`,
-      Body: fs.createReadStream(newPath),
-    };
-    await s3Upload(uploadParams)
-      .then((data) => {
-        location = data.Location;
-        location = changePdfToHtml(location);
-      })
-      .catch((err) => {
-        console.error(err);
+      const uploadParams = {
+        Bucket: BUCKET_NAME,
+        Key: `pdfs/${fileName}/${fileName}.pdf`,
+        Body: fs.createReadStream(newPath),
+      };
+      await s3Upload(uploadParams)
+        .then((data) => {
+          location = data.Location;
+          location = changePdfToHtml(location);
+        })
+        .catch((err) => {
+          console.error(err);
+        });
+    } else {
+      res.status(400).send("No file received");
+    }
+
+    const coverImagePath = coverImage.path;
+    if (coverImage) {
+      const uploadParams = {
+        Bucket: BUCKET_NAME,
+        Key: `pdfs/${fileName}/cover.jpg`,
+        Body: fs.createReadStream(coverImagePath),
+      };
+      await s3Upload(uploadParams)
+        .then((data) => {
+          location = data.Location;
+        })
+        .catch((err) => {
+          console.error(err);
+        });
+    } else {
+      res.status(400).send("No file received");
+    }
+
+    const uploadingPdfFilePath = newPath;
+
+    const data = await fs.promises.readFile(uploadingPdfFilePath);
+    const readPdf = await PDFDocument.load(data);
+    const { length } = readPdf.getPages();
+    const pageLength = length;
+
+    const htmlOutputDirPath = path.join(DEST, "html", fileName);
+    console.log("uploadingPdfPath:", uploadingPdfFilePath);
+    console.log("htmlOutputPath:", htmlOutputDirPath);
+    try {
+      const convertSuccess = await convert(
+        uploadingPdfFilePath,
+        htmlOutputDirPath,
+        fileName
+      );
+      if (!convertSuccess) {
+        console.log("convert failed");
+        throw new Error("PDF 변환 실패");
+      }
+      console.log("convert completed");
+      console.log("pageLength:", pageLength);
+
+      const S3KeyPath = path.join("pdfs", fileName);
+
+      //html, css 업로드
+
+      const htmlFileName = `${fileName}.html`;
+      const cssFileName = `${fileName}.css`;
+
+      uploadS3(htmlOutputDirPath, S3KeyPath, htmlFileName);
+      uploadS3(htmlOutputDirPath, S3KeyPath, cssFileName);
+
+      //page 업로드
+      for (let pageNum = 1; pageNum <= pageLength; pageNum++) {
+        const pageFileName = `${fileName}_${pageNum}.page`;
+        uploadS3(htmlOutputDirPath, S3KeyPath, pageFileName);
+      }
+
+      const removeList = [
+        "pdf2htmlEX.min.js",
+        "fancy.min.css",
+        "compatibility.min.js",
+        "base.min.css",
+      ];
+      removeList.forEach((file) => {
+        removeFile(path.join(htmlOutputDirPath, file));
       });
-  } else {
-    res.status(400).send("No file received");
-  }
+      removeFile(uploadingPdfFilePath);
+      removeFile(uploadingPdfFilePath);
 
-  const uploadingPdfFilePath = newPath;
-
-  const data = await fs.promises.readFile(uploadingPdfFilePath);
-  const readPdf = await PDFDocument.load(data);
-  const { length } = readPdf.getPages();
-  const pageLength = length;
-
-  const htmlOutputDirPath = path.join(DEST, "html", fileName);
-  console.log("uploadingPdfPath:", uploadingPdfFilePath);
-  console.log("htmlOutputPath:", htmlOutputDirPath);
-  try {
-    const convertSuccess = await convert(
-      uploadingPdfFilePath,
-      htmlOutputDirPath,
-      fileName
-    );
-    if (!convertSuccess) {
-      console.log("convert failed");
-      throw new Error("PDF 변환 실패");
+      console.log("업로드 완료");
+      return res.json({
+        isSuccess: true,
+        message: "pdf 업로드 성공",
+        fileName: fileName,
+        location: location,
+        totalPage: pageLength,
+      });
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({
+        isSuccess: false,
+        message: "pdf 업로드 실패",
+      });
     }
-    console.log("convert completed");
-    console.log("pageLength:", pageLength);
-
-    const S3KeyPath = path.join("pdfs", fileName);
-
-    //html, css 업로드
-    const coverFileName = `cover.jpg`;
-    const htmlFileName = `${fileName}.html`;
-    const cssFileName = `${fileName}.css`;
-    uploadS3(path.join(DEST), S3KeyPath, coverFileName, false);
-    uploadS3(htmlOutputDirPath, S3KeyPath, htmlFileName);
-    uploadS3(htmlOutputDirPath, S3KeyPath, cssFileName);
-
-    //page 업로드
-    for (let pageNum = 1; pageNum <= pageLength; pageNum++) {
-      const pageFileName = `${fileName}_${pageNum}.page`;
-      uploadS3(htmlOutputDirPath, S3KeyPath, pageFileName);
-    }
-
-    const removeList = [
-      "pdf2htmlEX.min.js",
-      "fancy.min.css",
-      "compatibility.min.js",
-      "base.min.css",
-    ];
-    removeList.forEach((file) => {
-      removeFile(path.join(htmlOutputDirPath, file));
-    });
-    removeFile(uploadingPdfFilePath);
-
-    console.log("업로드 완료");
-    return res.json({
-      isSuccess: true,
-      message: "pdf 업로드 성공",
-      fileName: fileName,
-      location: location,
-      totalPage: pageLength,
-    });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({
-      isSuccess: false,
-      message: "pdf 업로드 실패",
-    });
   }
-});
+);
 
 const convert = async (file, outputPath, fileName) => {
   const converter = new pdftohtml(file);
